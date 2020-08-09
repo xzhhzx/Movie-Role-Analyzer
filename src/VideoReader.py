@@ -15,20 +15,30 @@ class VideoReader():
         self.frameCount = []
 
 
-    def readVideo(self, videoFile):
+    def readVideo(self, videoFile, sampleRate=25, resizeRate=2):
         """
         Read video and yield frame with a generator
         """
         video = cv2.VideoCapture(videoFile)
         self.frameCount.append(0)
+        cnt = 0
+        grabbed = True
 
         while(True): 
-            ifGrabbed, frame = video.read()     # Read in
-            if(ifGrabbed): 
-                self.frameCount[-1] += 1    # Count total frames
-                yield frame
-            else: 
-                break
+            if(cnt % sampleRate == 0):
+                grabbed, frame = video.read()     # Read in frame
+                H, W, Ch = frame.shape
+                frame = cv2.resize(frame, (W//resizeRate, H//resizeRate))     # Resolution downsample
+                if(grabbed): 
+                    self.frameCount[-1] += 1    # Count total frames
+                    yield frame
+            else:       
+                grabbed = video.grab()      # Grab frame but don't decode it and skip it
+            
+            cnt += 1   
+            if(not grabbed):
+                break            
+            
 
     def readAllVideos(self):
         """

@@ -31,9 +31,10 @@ class FaceRecognition():
         knownFacesFileList = glob(knownFacesDir + "/*")
         print(knownFacesFileList)
         for filename in knownFacesFileList:
-            # self.personFaceMap[filename.split[0]] = face_recognition.load_image_file(filename)
             self.persons.append(filename.split('/')[-1].split('.')[0])
             img = face_recognition.load_image_file(filename)
+            # H, W, Ch = img.shape
+            # img = cv2.resize(img, (W//2, H//2))
             self.faces.append(img)
             self.facesEncodings.append(face_recognition.face_encodings(img)[0])
 
