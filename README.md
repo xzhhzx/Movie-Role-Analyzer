@@ -5,7 +5,7 @@ This project analyzes the importance of character role in a movie/series/video b
 
 ## Version 1.0.0 
 
-![](./design\ClassDiagram_v1.0.0.png)
+![](./design/ClassDiagram_v1.0.0.png)
 
 ### Features:
 
@@ -27,11 +27,13 @@ This project analyzes the importance of character role in a movie/series/video b
 
 * Efficiency
 
-	1. Frame sampling with a sample rate of 3~10​ :white_check_mark:
-	2. Resolution down-sampling :white_check_mark:
-	3. Parallelize code (e.g. pipelined reader-analyzer)
-	4. C++ implementation
+	1. :white_check_mark:Frame sampling with a sample rate of 3~10 
+	2. :white_check_mark:Resolution down-sampling 
+	3. :white_check_mark:Parallelize code (e.g. pipelined reader-analyzer, data parallelism)
+	4. C++ implementation (version 3.0)
 * Accuracy
-	1. More (repeated) ground truth faces to decrease uncertainty
-	2. CNN
+  1. Unmatched faces (Long Tao)
+  2. More (repeated) ground truth faces to decrease uncertainty
+  3. CNN (version 2.0)
+  4. Temporal smoothing
 

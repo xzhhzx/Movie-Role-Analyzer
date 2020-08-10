@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from glob import glob
 
 import cv2
-
+import time
 
 class VideoReader():
     def __init__(self, videoFilesDir):
@@ -15,36 +15,53 @@ class VideoReader():
         self.frameCount = []
 
 
-    def readVideo(self, videoFile, sampleRate=25, resizeRate=2):
+    def readVideo(self, videoFile, sampleRate=3, resizeRate=2):
         """
-        Read video and yield frame with a generator
+        Generator: Read video and yield frame
         """
         video = cv2.VideoCapture(videoFile)
         self.frameCount.append(0)
         cnt = 0
         grabbed = True
 
-        while(True): 
+        while(grabbed): 
             if(cnt % sampleRate == 0):
                 grabbed, frame = video.read()     # Read in frame
-                H, W, Ch = frame.shape
-                frame = cv2.resize(frame, (W//resizeRate, H//resizeRate))     # Resolution downsample
                 if(grabbed): 
+                    H, W, Ch = frame.shape
+                    frame = cv2.resize(frame, (W//resizeRate, H//resizeRate))     # Resolution downsample
                     self.frameCount[-1] += 1    # Count total frames
                     yield frame
             else:       
                 grabbed = video.grab()      # Grab frame but don't decode it and skip it
             
-            cnt += 1   
-            if(not grabbed):
-                break            
+            cnt += 1          
             
 
-    def readAllVideos(self):
+    def readAllVideos(self, yieldNum=20, sampleRate=3):
         """
-        Read all videos in self.videoFilesDir
+        Generator: Read all videos in self.videoFilesDir
         """
         for videoFile in self.videoFiles:
             print("Reading video file", videoFile, "......")
-            for frame in self.readVideo(videoFile):
-                yield frame
+            frames = []
+            cnt = 0
+            for frame in self.readVideo(videoFile, sampleRate=sampleRate):
+                frames.append(frame)
+                cnt += 1
+                if(cnt == yieldNum):
+                    yield frames
+                    cnt = 0
+                    frames = []
+            yield frames        # Remaining frames < 4
+                    
+
+if __name__ == '__main__':
+    vr = VideoReader("C:/Users/Zihan Xu/Desktop/videos")
+    gen = vr.readVideo(vr.videoFiles[0])
+
+    start = time.time() 
+    for i in range(20):
+        gen.__next__()
+    end = time.time() 
+    print("Average time of reading a frame:", (end-start) / 20)       # 0.0895 s
