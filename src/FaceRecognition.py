@@ -4,6 +4,7 @@ from glob import glob
 from tqdm import tqdm
 import face_recognition
 import cv2
+import dlib
 import threading
 import time
 from multiprocessing import Pool, Process
@@ -33,7 +34,7 @@ class FaceRecognition():
         """
         knownFacesFileList = glob(knownFacesDir + "/*")
         for filename in knownFacesFileList:
-            self.persons.append(filename.split('\\')[-1].split('.')[0])
+            self.persons.append(filename.split('/')[-1].split('.')[0])
             img = face_recognition.load_image_file(filename)
             # H, W, Ch = img.shape
             # img = cv2.resize(img, (W//2, H//2))
@@ -48,7 +49,7 @@ class FaceRecognition():
             @param image: (Image) unknown image for recognition
             @return: (List) detected face of each person. E.g. res[i] == 1 if the i-th person appeared in the image
         """
-        res = [0] * len(facesEncodings)
+        res = [0] * len(self.facesEncodings)
         start = time.time()
 
         # Encode unknown face(s)
@@ -110,7 +111,7 @@ class FaceRecognition():
 
         frameRate = 29.97   # unit: frame/s
         videoLength = 45    # unit: min
-        print("Total approximate number of frames:", videoLength * 60 * frameRate // sampleRate)
+        print("Total approximate number of frames:", len(self.videoReader.videoFiles) * videoLength * 60 * frameRate // sampleRate)
         numFrames = 0
         ss = time.time()
         
@@ -129,7 +130,6 @@ class FaceRecognition():
             # Method 2.Multiprocess pool implementation
             else:
                 # Data preperation
-
                 frames = np.array(frames)   # [20, shape of frame]
                 if(len(frames) == yieldNum):
                     frames = frames.reshape(numProcess, yieldNum//numProcess, *frames.shape[1:])    # [4, 5, shape of frame]
