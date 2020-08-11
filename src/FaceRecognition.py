@@ -7,6 +7,7 @@ import cv2
 import dlib
 import threading
 import time
+import re
 from multiprocessing import Pool, Process
 
 from VideoReader import VideoReader
@@ -25,6 +26,7 @@ class FaceRecognition():
 
         self.facesCount = np.array([0] * len(self.persons))    # List of int
         self.videoReader = VideoReader(videosDir)    # new VideoReader
+        self.stat = {}       # {name: faceCount} 
     
 
     def _getKnownFaces(self, knownFacesDir):
@@ -34,13 +36,16 @@ class FaceRecognition():
         """
         knownFacesFileList = glob(knownFacesDir + "/*")
         for filename in knownFacesFileList:
-            self.persons.append(filename.split('/')[-1].split('.')[0])
+            if('\\' in filename):
+                self.persons.append(filename.split('\\')[-1].split('.')[0])     # Windows format
+            else:
+                self.persons.append(filename.split('/')[-1].split('.')[0])      # Linux format
             img = face_recognition.load_image_file(filename)
             # H, W, Ch = img.shape
             # img = cv2.resize(img, (W//2, H//2))
             self.faces.append(img)
             self.facesEncodings.append(face_recognition.face_encodings(img)[0])
-        print(self.persons)
+        print("_getKnownFaces:", self.persons)
 
 
     def faceRecogn(self, image):
@@ -54,7 +59,10 @@ class FaceRecognition():
 
         # Encode unknown face(s)
         unknownFaceEncodings = face_recognition.face_encodings(image)
+        end = time.time()
+        print("Time of encoding a single frame:", end-start)         # 1.5s (predominant part)
         
+        start = time.time()
         # Compare the input unknown face(s) with each known face
         for faceEncoding in unknownFaceEncodings:
             dists = face_recognition.face_distance(self.facesEncodings, faceEncoding)
@@ -63,7 +71,7 @@ class FaceRecognition():
             self.facesCount[idx] += 1
         
         end = time.time()
-        # print("Time of processing a single frame:", end-start)         # 1.5s (predominant part)
+        print("Time of comparing a single frame:", end-start)         # 1.5s (predominant part)
 
         # Return true face index (or indices)
         return res
@@ -150,6 +158,8 @@ class FaceRecognition():
         e = time.time()
         print("Total time:", e-s)
 
+        # Calculate statistical result
+        self._stat()
 
 
         # def process_tmp():
@@ -185,3 +195,42 @@ class FaceRecognition():
         # print("Set tmp to -1")
 
         # x.join()
+
+    def _stat(self):
+        """
+        Calculate statistical result from self.persons and self.facesCount
+        """
+        for nameCntPair in zip(self.persons, self.facesCount):
+            name = nameCntPair[0]
+            if(bool(re.search(r'[0-9]', name))):    # Get rid of the number label for repeated faces
+                name = name[:-1]
+
+            if(name not in self.stat):  # Add new key if not exist
+                self.stat[name] = 0
+            self.stat[name] += nameCntPair[1]
+        
+    def getStat(self):
+        """
+        Return statistical result as a dictionary
+        """
+        if(len(self.stat) == 0):
+            print("No statistical result available. Invoke videoFaceRecogn() or directly invoke _stat() to get statistical result.")
+        else:
+            return self.stat
+    
+
+    def plotStat(self, figType='bar', saveFigName=None):
+        """
+        Plot statistical result as bar/pie chart
+            @param: figType: ('bar' or 'pie')
+            @param: saveFigName: (None or str)
+        """
+        sorted_stat = sorted(self.stat.items(), key=lambda pair: pair[1], reverse=True)
+        name, count = zip(*sorted_stat)
+        if(figType == 'bar'):
+            plt.bar(name, count)
+        elif(figType == 'pie'):
+            plt.pie(name, count)
+
+        if(saveFigName is not None):
+            plt.savefig(saveFigName)

@@ -2,16 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from glob import glob
 import sys
-
-import face_recognition
-import dlib
-import cv2
 from FaceRecognition import FaceRecognition
 
 
 if __name__ == '__main__':
     personsDir = "../../persons"
-    videosDir = "../../video"
+    videosDir = "../../videos"
     # personsDir = sys.argv[1]
     # videosDir = sys.argv[2]
 
