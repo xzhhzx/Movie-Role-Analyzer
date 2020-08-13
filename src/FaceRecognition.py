@@ -20,14 +20,11 @@ class FaceRecognition():
             @param videosDir: (str) directory path of videos
         """
         self.persons = []           # List of person names
-        self.numFaces = []          # Number of faces of each person. Length is the same of self.persons. Sum is the same of len(self.facesEncodings)
-        self.facesEncodings = []    # Face encodings of each person each face. Each encoding has length of 128
-        
+        self.faces = []             # List of face images. Each element is a 2D Numpy array
+        self.facesEncodings = []    # List of face encodings. Each encoding has length of 128
         self._getKnownFaces(knownFacesDir)
 
-        self.facesCount = np.array([0] * len(self.facesEncodings))  # Number of accumulated faces. Length = len(self.facesEncodings)
-        self.personsCount = np.array([0] * len(self.persons))       # Number of accumulated persons. Length = len(self.persons)    
-
+        self.facesCount = np.array([0] * len(self.persons))    # List of int
         self.videoReader = VideoReader(videosDir)    # new VideoReader
         self.stat = {}       # {name: faceCount} 
     
@@ -36,37 +33,19 @@ class FaceRecognition():
         """
         Init self attributes.
             @param knownFacesDir: (str) directory path which contains faces with their names as filename.
-
-            Directory structure:
-            - persons
-                - person1
-                    - face1
-                    - face2
-                    - face3
-                    - ...
-                - person2
-                - person3
-                - ...
         """
-
-        # For each person
-        for person in sorted(glob(knownFacesDir + "/*")):
-            if('\\' in person):
-                self.persons.append(person.split('\\')[-1])     # Windows format
+        knownFacesFileList = glob(knownFacesDir + "/*")
+        for filename in knownFacesFileList:
+            if('\\' in filename):
+                self.persons.append(filename.split('\\')[-1].split('.')[0])     # Windows format
             else:
-                self.persons.append(person.split('/')[-1])      # Linux format
-
-            self.numFaces.append(0)
-
-            # For each face of each person
-            for face in glob(person + "/*"):
-                img = face_recognition.load_image_file(face)
-                # H, W, Ch = img.shape
-                # img = cv2.resize(img, (W//2, H//2))
-                self.facesEncodings.append(face_recognition.face_encodings(img)[0])
-                self.numFaces[-1] += 1
-
-        print("Target known faces:", self.persons)
+                self.persons.append(filename.split('/')[-1].split('.')[0])      # Linux format
+            img = face_recognition.load_image_file(filename)
+            # H, W, Ch = img.shape
+            # img = cv2.resize(img, (W//2, H//2))
+            self.faces.append(img)
+            self.facesEncodings.append(face_recognition.face_encodings(img)[0])
+        print("_getKnownFaces:", self.persons)
 
 
     @staticmethod
@@ -211,19 +190,17 @@ class FaceRecognition():
 
     def _stat(self):
         """
-        Calculate statistical result from self.persons and self.personsCount
+        Calculate statistical result from self.persons and self.facesCount
         """
-        # Get self.personsCount from self.facesCount
-        idx = 0
-        for person, num in enumerate(self.numFaces):
-            for i in range(num):
-                self.personsCount[person] += self.facesCount[idx]
-                idx += 1
+        for nameCntPair in zip(self.persons, self.facesCount):
+            name = nameCntPair[0]
+            if(bool(re.search(r'[0-9]', name))):    # Get rid of the number label for repeated faces
+                name = name[:-1]
 
-        # Pack self.persons and self.personsCount as dictionary
-        self.stat = dict(zip(self.persons, self.personsCount))
+            if(name not in self.stat):  # Add new key if not exist
+                self.stat[name] = 0
+            self.stat[name] += nameCntPair[1]
         
-
     def getStat(self):
         """
         Return statistical result as a dictionary
