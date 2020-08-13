@@ -137,12 +137,15 @@ class FaceRecognition():
             
             # Method 2.Multiprocess pool implementation
             else:
-                # Data preperation
+                # Data preperation (distribution)
                 frames = np.array(frames)   # [20, shape of frame]
                 if(len(frames) == yieldNum):
                     frames = frames.reshape(numProcess, yieldNum//numProcess, *frames.shape[1:])    # [4, 5, shape of frame]
                 else:
-                    frames = frames.reshape(1, len(frames), *frames.shape[1:])      # Remainder, e.g. [1, 11, shape of frame]
+                    # Find the maximum number of division in order to distribute tasks as much as possible
+                    for numTask in range(numProcess-1, 0, -1):
+                        if(len(frames) % numTask == 0):
+                            frames = frames.reshape(numTask, len(frames) // numTask, *frames.shape[1:])      # Remainder, e.g. [3, 3, shape of frame]
                 
                 # Create pool
                 with Pool(numProcess) as pool:   
