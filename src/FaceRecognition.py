@@ -48,32 +48,35 @@ class FaceRecognition():
         print("_getKnownFaces:", self.persons)
 
 
+    @staticmethod
+    def _faceRecogn(image, facesEncodings):
+        """
+        Detect faces in image with comparision to facesEncodings. Save result in res
+            @param image: (Image) unknown image for recognition
+            @param facesEncodings: (List<Vector>) known faces encodings 
+            @return: (List) detected face of each person. E.g. res[i] == 1 if the i-th person appeared in the image
+        """
+        res = [0] * len(facesEncodings)
+
+        # Encode unknown face(s)
+        unknownFaceEncodings = face_recognition.face_encodings(image)
+        
+        # Compare the input unknown face(s) with each known face
+        for faceEncoding in unknownFaceEncodings:
+            dists = face_recognition.face_distance(facesEncodings, faceEncoding)
+            idx = np.argmin(dists)
+            res[idx] += 1
+        return res
+
+
     def faceRecogn(self, image):
         """
         Get face appearances that are detected in a single input image.
             @param image: (Image) unknown image for recognition
             @return: (List) detected face of each person. E.g. res[i] == 1 if the i-th person appeared in the image
         """
-        res = [0] * len(self.facesEncodings)
-        start = time.time()
-
-        # Encode unknown face(s)
-        unknownFaceEncodings = face_recognition.face_encodings(image)
-        end = time.time()
-        print("Time of encoding a single frame:", end-start)         # 1.5s (predominant part)
-        
-        start = time.time()
-        # Compare the input unknown face(s) with each known face
-        for faceEncoding in unknownFaceEncodings:
-            dists = face_recognition.face_distance(self.facesEncodings, faceEncoding)
-            idx = np.argmin(dists)
-            res[idx] += 1
-            self.facesCount[idx] += 1
-        
-        end = time.time()
-        print("Time of comparing a single frame:", end-start)         # 1.5s (predominant part)
-
-        # Return true face index (or indices)
+        res = self._faceRecogn(image, self.facesEncodings)
+        self.facesCount += res      # Accumulate to faceCount
         return res
     
 
@@ -82,27 +85,15 @@ class FaceRecognition():
         """
         Get number of face appearances that are detected in multiple input images. This is a static method so that it can be invoked in child processes.
             @param image: (List<Image> or 3D/4D Numpy array) unknown image for recognition
-            @return: (List) sum of detected faces in each image of each person. E.g. res[i] == 3 if the i-th person appeared 3 times in total
+            @oaram facesEncodings: (List<Vector>) known faces encodings 
+            @return: (1D Numpy array) sum of detected faces in each image of each person. E.g. res[i] == 3 if the i-th person appeared 3 times in total
         """
-        res = [0] * len(facesEncodings)
-        start = time.time()
+        res = np.array([0] * len(facesEncodings))
 
         # Iterate over each image
         for image in images:
-            # Encode unknown face(s)
-            unknownFaceEncodings = face_recognition.face_encodings(image)
-            
-            # Compare the input unknown face(s) with each known face
-            for faceEncoding in unknownFaceEncodings:
-                dists = face_recognition.face_distance(facesEncodings, faceEncoding)
-                idx = np.argmin(dists)
-                res[idx] += 1
-            
-        end = time.time()
-        # print("Time of processing " + str(len(images)) + " frame:" + str(end-start))         # 1.5s (predominant part)
-
-        # Return true face index (or indices)
-        return res
+            res += self._faceRecogn(image, facesEncodings)
+        return res    
 
 
 
@@ -139,13 +130,11 @@ class FaceRecognition():
             else:
                 # Data preperation (distribution)
                 frames = np.array(frames)   # [20, shape of frame]
-                if(len(frames) == yieldNum):
-                    frames = frames.reshape(numProcess, yieldNum//numProcess, *frames.shape[1:])    # [4, 5, shape of frame]
-                else:
-                    # Find the maximum number of division in order to distribute tasks as much as possible
-                    for numTask in range(numProcess-1, 0, -1):
-                        if(len(frames) % numTask == 0):
-                            frames = frames.reshape(numTask, len(frames) // numTask, *frames.shape[1:])      # Remainder, e.g. [3, 3, shape of frame]
+                
+                # Find the maximum number of division in order to distribute tasks as much as possible
+                for numTask in range(numProcess, 0, -1):
+                    if(len(frames) % numTask == 0):
+                        frames = frames.reshape(numTask, len(frames) // numTask, *frames.shape[1:])      # Remainder, e.g. [3, 3, shape of frame]
                 
                 # Create pool
                 with Pool(numProcess) as pool:   

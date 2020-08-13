@@ -7,7 +7,7 @@ from FaceRecognition import FaceRecognition
 
 if __name__ == '__main__':
     personsDir = "../../persons"
-    videosDir = "../../videos"
+    videosDir = "../../Video"
     # personsDir = sys.argv[1]
     # videosDir = sys.argv[2]
 

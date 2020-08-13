@@ -25,6 +25,14 @@ This project analyzes the importance of character role in a movie/series/video b
 
 
 
+Accuracy problems:
+
+1. Long Tao get matched with a role -> find ***k*** most similar faces
+2. A role gets matched with another role -> ?
+3. No (frontal) face detected -> temporal smooth 
+
+
+
 ### Solutions:
 
 * Efficiency
@@ -34,7 +42,7 @@ This project analyzes the importance of character role in a movie/series/video b
 	3. :white_check_mark:Parallelize code (e.g. pipelined reader-analyzer, data parallelism) -> speedup = 2 for 4 processes
 	4. C++ implementation (version 3.0)
 * Accuracy
-  1. Unmatched faces (Long Tao)
+  1. Unmatched faces (Long Tao) -> idea: find ***k*** most similar faces, if they belong to the same person, then it is not a Long Tao. This also decreases uncertainty.
   2. :white_check_mark:More (repeated) ground truth faces to decrease uncertainty
   3. CNN (version 2.0)
   4. Temporal smoothing
