@@ -45,15 +45,17 @@ class FaceRecognition():
             # img = cv2.resize(img, (W//2, H//2))
             self.faces.append(img)
             self.facesEncodings.append(face_recognition.face_encodings(img)[0])
-        print("_getKnownFaces:", self.persons)
+        # print("_getKnownFaces:", self.persons)
 
 
     @staticmethod
-    def _faceRecogn(image, facesEncodings):
+    def _faceRecogn(image, facesEncodings, personNames, k=3):
         """
         Detect faces in image with comparision to facesEncodings. Save result in res
             @param image: (Image) unknown image for recognition
             @param facesEncodings: (List<Vector>) known faces encodings 
+            @param personNames: (List<str>)
+            @param k: (int) number of minimum 
             @return: (List) detected face of each person. E.g. res[i] == 1 if the i-th person appeared in the image
         """
         res = [0] * len(facesEncodings)
@@ -64,24 +66,36 @@ class FaceRecognition():
         # Compare the input unknown face(s) with each known face
         for faceEncoding in unknownFaceEncodings:
             dists = face_recognition.face_distance(facesEncodings, faceEncoding)
-            idx = np.argmin(dists)
-            res[idx] += 1
+            # idx = np.argmin(dists)
+            minIndices = np.argpartition(dists, k)[:k]
+            
+            names = []
+            for idx in minIndices:
+                name = personNames[idx]
+                name = name[:len(name) -1 - len(name.split("_")[-1])]      # Get name 
+                names.append(name)
+
+            # If minimum k distances does belong to the same person, accumulate
+            # Or else it might be a Long Tao who is not in self.persons
+            if(names.count(names[0]) == len(names)):
+                res[minIndices[0]] += 1
+
         return res
 
 
-    def faceRecogn(self, image):
+    def faceRecogn(self, image, k=3):
         """
         Get face appearances that are detected in a single input image.
             @param image: (Image) unknown image for recognition
             @return: (List) detected face of each person. E.g. res[i] == 1 if the i-th person appeared in the image
         """
-        res = self._faceRecogn(image, self.facesEncodings)
+        res = self._faceRecogn(image, self.facesEncodings, self.persons, k)
         self.facesCount += res      # Accumulate to faceCount
         return res
     
 
     @staticmethod
-    def batchedFacesRecogn(images, facesEncodings):
+    def batchedFacesRecogn(images, facesEncodings, persons, k=3):
         """
         Get number of face appearances that are detected in multiple input images. This is a static method so that it can be invoked in child processes.
             @param image: (List<Image> or 3D/4D Numpy array) unknown image for recognition
@@ -92,21 +106,36 @@ class FaceRecognition():
 
         # Iterate over each image
         for image in images:
-            res += self._faceRecogn(image, facesEncodings)
+            res += FaceRecognition._faceRecogn(image, facesEncodings, persons, k)
         return res    
 
 
 
-    def videoFaceRecogn(self, numProcess=4, yieldNum=40, sampleRate=10):
+    def videoFaceRecogn(self, numProcess=4, yieldNum=40, sampleRate=10, k_certainty=3):
         """
         For each frame in a video, recognize the face(s) and add to self.facesCount. Each frame is acquired by self.videoReader
             @param: numProcess: (int) 
             @param: yieldNum: (int)
             @param: sampleRate: (int)
+            @param: k_certainty: (int) k should be larger than number of faces of any person. For 3 faces per person, the best practice is to set k=2
         """
         s = time.time()
         assert(numProcess > 0)
-        assert(yieldNum % numProcess == 0)      # Assert yieldNum can be perfectly divided into subtasks
+        
+
+        # Check if all person has at least k_certainty faces, else raise exception
+        cnt = {}
+        for person in self.persons:
+            name = person[:len(person) -1 - len(person.split("_")[-1])]
+            
+            if(name not in cnt):  # Add new key if not exist
+                cnt[name] = 0
+            cnt[name] += 1
+
+        if(min(cnt.values()) < k_certainty):
+            raise Exception("Minimum number of faces of each person is smaller than k_certainty which is", k_certainty, "!")
+
+
 
         frameRate = 29.97   # unit: frame/s
         videoLength = 45    # unit: min
@@ -130,15 +159,16 @@ class FaceRecognition():
             else:
                 # Data preperation (distribution)
                 frames = np.array(frames)   # [20, shape of frame]
-                
+
                 # Find the maximum number of division in order to distribute tasks as much as possible
                 for numTask in range(numProcess, 0, -1):
                     if(len(frames) % numTask == 0):
                         frames = frames.reshape(numTask, len(frames) // numTask, *frames.shape[1:])      # Remainder, e.g. [3, 3, shape of frame]
+                        break
                 
                 # Create pool
                 with Pool(numProcess) as pool:   
-                    args = zip(frames, [self.facesEncodings]*numProcess)    # Pack parameters  
+                    args = zip(frames, [self.facesEncodings]*numProcess, [self.persons]*numProcess, [k_certainty]*numProcess)    # Pack parameters  
                     resList = pool.starmap(self.batchedFacesRecogn, args)   # Distibute tasks to child processes
 
                 for res in resList:     # Accumulate the returned results to master process
@@ -152,6 +182,7 @@ class FaceRecognition():
 
         # Calculate statistical result
         self._stat()
+        print(self.getStat())
 
 
         # def process_tmp():
@@ -194,12 +225,19 @@ class FaceRecognition():
         """
         for nameCntPair in zip(self.persons, self.facesCount):
             name = nameCntPair[0]
-            if(bool(re.search(r'[0-9]', name))):    # Get rid of the number label for repeated faces
-                name = name[:-1]
+
+            # 1.Split according to number
+            # s = re.search(r'[0-9]', name)
+            # if(bool(s)):    # Get rid of the number label for repeated faces
+            #     name = name[0 : s.span()[0]]
+
+            # 2.Split by "_"
+            name = name[:len(name) -1 - len(name.split("_")[-1])]
 
             if(name not in self.stat):  # Add new key if not exist
                 self.stat[name] = 0
             self.stat[name] += nameCntPair[1]
+
         
     def getStat(self):
         """
